@@ -20,6 +20,7 @@ If not, see https://www.gnu.org/licenses/
 ==========================================================================
 */
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using BriefingRoom4DCS.Data;
@@ -40,6 +41,11 @@ namespace BriefingRoom4DCS.Template
         internal List<List<double>> ContextCustomFrontLine { get; init; }
         internal bool ContextSituationIgnoresCombatZones { get; init; }
         internal List<List<Coordinates>> ContextCustomCombatZones { get; init; }
+        internal int StartDateTimeYear { get; init; }
+        internal int StartDateTimeMonth { get; init; }
+        internal int StartDateTimeDay { get; init; }
+        internal int StartDateTimeHour { get; init; }
+        internal int StartDateTimeMinute { get; init; }
         internal Season EnvironmentSeason { get; init; }
         internal TimeOfDay EnvironmentTimeOfDay { get; init; }
         internal string EnvironmentWeatherPreset { get; init; }
@@ -92,6 +98,11 @@ namespace BriefingRoom4DCS.Template
             ContextCustomFrontLine = template.ContextCustomFrontLine;
             ContextSituationIgnoresCombatZones = template.ContextSituationIgnoresCombatZones;
             ContextCustomCombatZones = template.ContextCustomCombatZones.Select(zone => zone.Select(coord => new Coordinates(coord[0], coord[1])).ToList()).ToList();
+            StartDateTimeYear = template.StartDateTimeYear;
+            StartDateTimeMonth = template.StartDateTimeMonth;
+            StartDateTimeDay = template.StartDateTimeDay;
+            StartDateTimeHour = template.StartDateTimeHour;
+            StartDateTimeMinute = template.StartDateTimeMinute;
             EnvironmentSeason = template.EnvironmentSeason;
             EnvironmentTimeOfDay = template.EnvironmentTimeOfDay;
             EnvironmentWeatherPreset = template.EnvironmentWeatherPreset;
@@ -154,6 +165,12 @@ namespace BriefingRoom4DCS.Template
         {
             return PlayerFlightGroups.Aggregate(0, (acc, x) => acc + (x.AIWingmen ? 1 : x.Count));
         }
+
+        internal bool TryGetStartDate(out DateTime date) =>
+            StartDateTimeSettings.TryGetDate(StartDateTimeYear, StartDateTimeMonth, StartDateTimeDay, ContextDecade, out date);
+
+        internal bool TryGetStartTime(out TimeSpan time) =>
+            StartDateTimeSettings.TryGetTime(StartDateTimeHour, StartDateTimeMinute, out time);
 
         private static List<string> GetMods(IDatabase database, MissionTemplate template)
         {   

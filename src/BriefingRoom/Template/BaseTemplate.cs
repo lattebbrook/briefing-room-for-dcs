@@ -20,7 +20,9 @@ If not, see https://www.gnu.org/licenses/
 ==========================================================================
 */
 
+using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using BriefingRoom4DCS.Data;
 
@@ -32,7 +34,8 @@ namespace BriefingRoom4DCS.Template
         private string ContextCoalitionBlue_;
         public string ContextCoalitionRed { get { return ContextCoalitionRed_; } set { ContextCoalitionRed_ = Database.CheckID<DBEntryCoalition>(value); } }
         private string ContextCoalitionRed_;
-        public Decade ContextDecade { get; set; }
+        public Decade ContextDecade { get { return ContextDecade_; } set { ContextDecade_ = value; EnsureStartDateTimeIsValid(); } }
+        private Decade ContextDecade_;
         public Coalition ContextPlayerCoalition { get; set; }
         public string ContextTheater { get { return ContextTheater_; } set { ContextTheater_ = Database.CheckID<DBEntryTheater>(value); } }
         private string ContextTheater_;
@@ -40,6 +43,19 @@ namespace BriefingRoom4DCS.Template
         private string ContextSituation_;
         public bool ContextSituationIgnoresFrontLine { get; set; }
         public bool ContextSituationIgnoresCombatZones { get; set; }
+        public int StartDateTimeYear { get { return StartDateTimeYear_; } set { StartDateTimeYear_ = StartDateTimeSettings.IsYearInDecade(value, ContextDecade) ? value : StartDateTimeSettings.DisabledDatePart; EnsureStartDateTimeIsValid(); } }
+        private int StartDateTimeYear_;
+        public int StartDateTimeMonth { get { return StartDateTimeMonth_; } set { StartDateTimeMonth_ = value >= 1 && value <= 12 ? value : StartDateTimeSettings.DisabledDatePart; EnsureStartDateTimeIsValid(); } }
+        private int StartDateTimeMonth_;
+        public int StartDateTimeDay { get { return StartDateTimeDay_; } set { StartDateTimeDay_ = value >= 1 ? Toolbox.Clamp(value, 1, GetStartDateTimeDaysInMonth()) : StartDateTimeSettings.DisabledDatePart; } }
+        private int StartDateTimeDay_;
+        public int StartDateTimeHour { get { return StartDateTimeHour_; } set { StartDateTimeHour_ = value >= 0 && value <= 23 ? value : StartDateTimeSettings.DisabledTimePart; } }
+        private int StartDateTimeHour_ = StartDateTimeSettings.DisabledTimePart;
+        public int StartDateTimeMinute { get { return StartDateTimeMinute_; } set { StartDateTimeMinute_ = value >= 0 && value <= 59 ? value : StartDateTimeSettings.DisabledTimePart; } }
+        private int StartDateTimeMinute_ = StartDateTimeSettings.DisabledTimePart;
+        public bool HasStartDate => TryGetStartDate(out _);
+        public bool HasStartTime => TryGetStartTime(out _);
+        public bool HasStartDateTime => HasStartDate && HasStartTime;
         public int FlightPlanObjectiveDistanceMax { get { return FlightPlanObjectiveDistanceMax_; } set { FlightPlanObjectiveDistanceMax_ = Toolbox.Clamp(value, 0, Database.Common.MaxObjectiveDistance); } }
         private int FlightPlanObjectiveDistanceMax_;
         public int FlightPlanObjectiveDistanceMin { get { return FlightPlanObjectiveDistanceMin_; } set { FlightPlanObjectiveDistanceMin_ = Toolbox.Clamp(value, 0, Database.Common.MaxObjectiveDistance); } }
@@ -96,6 +112,11 @@ namespace BriefingRoom4DCS.Template
             ContextSituation = "";
             ContextSituationIgnoresFrontLine = false;
             ContextSituationIgnoresCombatZones = false;
+            StartDateTimeYear = StartDateTimeSettings.DisabledDatePart;
+            StartDateTimeMonth = StartDateTimeSettings.DisabledDatePart;
+            StartDateTimeDay = StartDateTimeSettings.DisabledDatePart;
+            StartDateTimeHour = StartDateTimeSettings.DisabledTimePart;
+            StartDateTimeMinute = StartDateTimeSettings.DisabledTimePart;
 
             FlightPlanObjectiveDistanceMax = 160;
             FlightPlanObjectiveDistanceMin = 40;
@@ -151,6 +172,11 @@ namespace BriefingRoom4DCS.Template
             ContextSituation = ini.GetValue("Context", "Situation", ContextSituation);
             ContextSituationIgnoresFrontLine = ini.GetValue("Context", "SituationIgnoresFrontLine", ContextSituationIgnoresFrontLine);
             ContextSituationIgnoresCombatZones = ini.GetValue("Context", "SituationIgnoresCombatZones", ContextSituationIgnoresCombatZones);
+            StartDateTimeYear = ini.GetValue("Environment", "StartDateTimeYear", StartDateTimeSettings.DisabledDatePart);
+            StartDateTimeMonth = ini.GetValue("Environment", "StartDateTimeMonth", StartDateTimeSettings.DisabledDatePart);
+            StartDateTimeDay = ini.GetValue("Environment", "StartDateTimeDay", StartDateTimeSettings.DisabledDatePart);
+            StartDateTimeHour = ini.GetValue("Environment", "StartDateTimeHour", StartDateTimeSettings.DisabledTimePart);
+            StartDateTimeMinute = ini.GetValue("Environment", "StartDateTimeMinute", StartDateTimeSettings.DisabledTimePart);
 
             FlightPlanObjectiveDistanceMax = ini.GetValue("FlightPlan", "ObjectiveDistanceMax", FlightPlanObjectiveDistanceMax);
             FlightPlanObjectiveDistanceMin = ini.GetValue("FlightPlan", "ObjectiveDistanceMin", FlightPlanObjectiveDistanceMin);
@@ -209,6 +235,11 @@ namespace BriefingRoom4DCS.Template
             ini.SetValue("Context", "Situation", ContextSituation);
             ini.SetValue("Context", "SituationIgnoresFrontLine", ContextSituationIgnoresFrontLine);
             ini.SetValue("Context", "SituationIgnoresCombatZones", ContextSituationIgnoresCombatZones);
+            SetOptionalStartDateTimeValue(ini, "StartDateTimeYear", StartDateTimeYear, StartDateTimeSettings.DisabledDatePart);
+            SetOptionalStartDateTimeValue(ini, "StartDateTimeMonth", StartDateTimeMonth, StartDateTimeSettings.DisabledDatePart);
+            SetOptionalStartDateTimeValue(ini, "StartDateTimeDay", StartDateTimeDay, StartDateTimeSettings.DisabledDatePart);
+            SetOptionalStartDateTimeValue(ini, "StartDateTimeHour", StartDateTimeHour, StartDateTimeSettings.DisabledTimePart);
+            SetOptionalStartDateTimeValue(ini, "StartDateTimeMinute", StartDateTimeMinute, StartDateTimeSettings.DisabledTimePart);
 
             ini.SetValue("FlightPlan", "ObjectiveDistanceMax", FlightPlanObjectiveDistanceMax);
             ini.SetValue("FlightPlan", "ObjectiveDistanceMin", FlightPlanObjectiveDistanceMin);
@@ -255,6 +286,46 @@ namespace BriefingRoom4DCS.Template
         {
             foreach (var item in PlayerFlightGroups)
                 item.AssignAlias(PlayerFlightGroups.IndexOf(item));
+        }
+
+        public bool TryGetStartDate(out DateTime date) =>
+            StartDateTimeSettings.TryGetDate(StartDateTimeYear, StartDateTimeMonth, StartDateTimeDay, ContextDecade, out date);
+
+        public bool TryGetStartTime(out TimeSpan time) =>
+            StartDateTimeSettings.TryGetTime(StartDateTimeHour, StartDateTimeMinute, out time);
+
+        public int GetStartDateTimeFirstYear() => StartDateTimeSettings.GetFirstYear(ContextDecade);
+
+        public int GetStartDateTimeLastYear() => StartDateTimeSettings.GetLastYear(ContextDecade);
+
+        public int GetStartDateTimeDaysInMonth() =>
+            StartDateTimeSettings.GetDaysInMonth(StartDateTimeYear, StartDateTimeMonth);
+
+        public void EnsureStartDateTimeIsValid()
+        {
+            if (StartDateTimeYear != StartDateTimeSettings.DisabledDatePart &&
+                !StartDateTimeSettings.IsYearInDecade(StartDateTimeYear, ContextDecade))
+                StartDateTimeYear_ = StartDateTimeSettings.DisabledDatePart;
+
+            if (StartDateTimeMonth < 1 || StartDateTimeMonth > 12)
+                StartDateTimeMonth_ = StartDateTimeSettings.DisabledDatePart;
+
+            if (StartDateTimeDay < 1)
+                StartDateTimeDay_ = StartDateTimeSettings.DisabledDatePart;
+            else
+                StartDateTimeDay_ = Toolbox.Clamp(StartDateTimeDay, 1, GetStartDateTimeDaysInMonth());
+
+            if (StartDateTimeHour < 0 || StartDateTimeHour > 23)
+                StartDateTimeHour_ = StartDateTimeSettings.DisabledTimePart;
+
+            if (StartDateTimeMinute < 0 || StartDateTimeMinute > 59)
+                StartDateTimeMinute_ = StartDateTimeSettings.DisabledTimePart;
+        }
+
+        private static void SetOptionalStartDateTimeValue(INIFile ini, string key, int value, int disabledValue)
+        {
+            string iniValue = value == disabledValue ? "" : value.ToString(NumberFormatInfo.InvariantInfo);
+            ini.SetValue("Environment", key, iniValue);
         }
 
 

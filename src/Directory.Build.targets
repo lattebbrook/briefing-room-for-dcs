@@ -34,11 +34,12 @@
       <_FilesToMove Include="$(PublishDir)*.xml" Exclude="$(PublishDir)web.config" />
     </ItemGroup>
 
-    <!-- Move loose files to bin folder -->
+    <!-- Multiple executable projects publish into the same folder; another publish target may move a file first. -->
     <Move SourceFiles="@(_FilesToMove)" 
           DestinationFolder="$(_BinFolder)" 
           OverwriteReadOnlyFiles="true"
-          Condition="'@(_FilesToMove)' != ''" />
+          ContinueOnError="WarnAndContinue"
+          Condition="'@(_FilesToMove)' != '' And Exists('%(_FilesToMove.FullPath)')" />
 
     <!-- Move locale folders using robocopy (Windows) - only the ones we include -->
     <Exec Command="if exist &quot;$(PublishDir)de&quot; (robocopy &quot;$(PublishDir)de&quot; &quot;$(_BinFolder)\de&quot; /E /MOVE /NFL /NDL /NJH /NJS &gt;nul 2&gt;&amp;1 || exit 0)" 
