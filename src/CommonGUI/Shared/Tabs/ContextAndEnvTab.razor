@@ -46,6 +46,7 @@
     }
 
     <InputEnum Label=@briefingRoom.Translate("TimePeriod") @bind-Value="Template.ContextDecade" EnumType="Decade" />
+    <StartDateTimeInput Template="Template" />
     <InputEnum Label=@briefingRoom.Translate("PlayerSide") @bind-Value="Template.ContextPlayerCoalition"
                EnumType="Coalition" />
 </div>
@@ -56,9 +57,11 @@
     {
         <div class="generator-group flex-justify-spaced flex-margin-fix">
             <InputEnum ClassString="flex-block" Label=@briefingRoom.Translate("Season")
-                       @bind-Value="MissionTemplate.EnvironmentSeason" EnumType="Season" />
+                       @bind-Value="MissionTemplate.EnvironmentSeason" EnumType="Season"
+                       IsDisabled="MissionTemplate.HasStartDate" />
             <InputEnum ClassString="flex-block" Label=@briefingRoom.Translate("TimeOfDay")
-                       @bind-Value="MissionTemplate.EnvironmentTimeOfDay" EnumType="TimeOfDay" />
+                       @bind-Value="MissionTemplate.EnvironmentTimeOfDay" EnumType="TimeOfDay"
+                       IsDisabled="MissionTemplate.HasStartTime" />
         </div>
 
         <div class="generator-group flex-justify-spaced flex-margin-fix">

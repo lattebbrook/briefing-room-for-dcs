@@ -43,6 +43,7 @@ namespace BriefingRoom4DCS.Generator
             };
 
             DateTime date = GenerateCampaignDate(campaignTemplate);
+            TimeSpan? startTime = campaignTemplate.TryGetStartTime(out TimeSpan fixedStartTime) ? fixedStartTime : null;
 
             string previousSituationId = "";
             Coordinates previousObjectiveCenterCoords = new();
@@ -53,7 +54,7 @@ namespace BriefingRoom4DCS.Generator
             var failedTries = 0;
             do
             {
-                if (i > 0) date = IncrementDate(date);
+                if (i > 0) date = IncrementDate(date, campaignTemplate.ContextDecade);
 
                 var template = CreateMissionTemplate(
                     briefingRoom.Database,
@@ -64,16 +65,15 @@ namespace BriefingRoom4DCS.Generator
                     previousSituationId,
                     failedTries > 1 ? new() : previousObjectiveCenterCoords,
                     failedTries > 2 ? "" : previousPlayerAirbaseId,
-                    failedTries > 2 ? "" : previousDestinationAirbaseId
+                    failedTries > 2 ? "" : previousDestinationAirbaseId,
+                    date,
+                    startTime
                     );
 
                 try
                 {
                     var mission = MissionGenerator.GenerateRetryable(briefingRoom, template);
-                    mission.SetValue("DateDay", date.Day);
-                    mission.SetValue("DateMonth", date.Month);
-                    mission.SetValue("DateYear", date.Year);
-                    mission.SetValue("BriefingDate", $"{date.Day:00}/{date.Month:00}/{date.Year:0000}");
+                    Temporal.SetMissionDate(ref mission, date);
 
                     campaign.AddMission(mission);
 
@@ -103,6 +103,9 @@ namespace BriefingRoom4DCS.Generator
 
         private static DateTime GenerateCampaignDate(CampaignTemplate campaignTemplate)
         {
+            if (campaignTemplate.TryGetStartDate(out DateTime startDate))
+                return startDate;
+
             int year = Toolbox.GetRandomYearFromDecade(campaignTemplate.ContextDecade);
             Month month = Toolbox.RandomFrom(Toolbox.GetEnumValues<Month>());
             int day = Toolbox.RandomMinMax(1, GeneratorTools.GetDaysPerMonth(month, year));
@@ -142,7 +145,8 @@ namespace BriefingRoom4DCS.Generator
             string langKey,
             CampaignTemplate campaignTemplate,
             int missionIndex, int missionCount,
-            string previousSituationId, Coordinates previousObjectiveCenterCoords, string previousPlayerAirbaseId, string previousDestinationAirbaseId)
+            string previousSituationId, Coordinates previousObjectiveCenterCoords, string previousPlayerAirbaseId, string previousDestinationAirbaseId,
+            DateTime missionDate, TimeSpan? startTime)
         {
             string weatherPreset = GetWeatherForMission(database, campaignTemplate.EnvironmentBadWeatherChance);
             MissionTemplate template = new(database)
@@ -156,6 +160,11 @@ namespace BriefingRoom4DCS.Generator
                 ContextPlayerCoalition = campaignTemplate.ContextPlayerCoalition,
                 ContextTheater = campaignTemplate.ContextTheater,
                 ContextSituation = campaignTemplate.ContextSituation,
+                StartDateTimeYear = missionDate.Year,
+                StartDateTimeMonth = missionDate.Month,
+                StartDateTimeDay = missionDate.Day,
+                StartDateTimeHour = startTime.HasValue ? startTime.Value.Hours : StartDateTimeSettings.DisabledTimePart,
+                StartDateTimeMinute = startTime.HasValue ? startTime.Value.Minutes : StartDateTimeSettings.DisabledTimePart,
 
                 EnvironmentSeason = Season.Random,
                 EnvironmentTimeOfDay = GetTimeOfDayForMission(campaignTemplate.EnvironmentNightMissionChance),
@@ -477,6 +486,12 @@ namespace BriefingRoom4DCS.Generator
             };
         }
 
-        private static DateTime IncrementDate(DateTime dateTime) => dateTime.AddDays(Toolbox.RandomMinMax(1, 3));
+        private static DateTime IncrementDate(DateTime dateTime, Decade decade)
+        {
+            DateTime nextDate = dateTime.AddDays(Toolbox.RandomMinMax(1, 3));
+            DateTime maxDate = new(StartDateTimeSettings.GetLastYear(decade), 12, 31);
+
+            return nextDate > maxDate ? maxDate : nextDate;
+        }
     }
 }

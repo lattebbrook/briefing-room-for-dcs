@@ -33,6 +33,14 @@ namespace BriefingRoom4DCS.Generator.Mission
             int day;
             Month month;
 
+            if (mission.TemplateRecord.TryGetStartDate(out DateTime startDate))
+            {
+                month = (Month)(startDate.Month - 1);
+                SetMissionDate(ref mission, startDate);
+                BriefingRoom.PrintToLog($"Mission date set to fixed start date {startDate:dd MMMM yyyy}.");
+                return month;
+            }
+
             // Select a random year from the most recent coalition's decade.
             var year = Toolbox.GetRandomYearFromDecade(mission.TemplateRecord.ContextDecade);
 
@@ -59,10 +67,7 @@ namespace BriefingRoom4DCS.Generator.Mission
                 };
             }
 
-            mission.SetValue("DateDay", day);
-            mission.SetValue("DateMonth", (int)month + 1);
-            mission.SetValue("DateYear", year);
-            mission.SetValue("BriefingDate", $"{day:00}/{(int)month + 1:00}/{year:0000}");
+            SetMissionDate(ref mission, new DateTime(year, (int)month + 1, day));
 
             BriefingRoom.PrintToLog($"Misson date set to {day} {month} {year}.");
             return month;
@@ -71,6 +76,14 @@ namespace BriefingRoom4DCS.Generator.Mission
         internal static void GenerateMissionTime(ref DCSMission mission, Month month)
         {
             int hour, minute;
+
+            if (mission.TemplateRecord.TryGetStartTime(out TimeSpan startTime))
+            {
+                SetMissionTime(ref mission, startTime.Hours, startTime.Minutes);
+                BriefingRoom.PrintToLog($"Mission time set to fixed start time {startTime.Hours:00}:{startTime.Minutes:00}.");
+                return;
+            }
+
             var totalMinutes = mission.TemplateRecord.EnvironmentTimeOfDay switch
             {
                 TimeOfDay.RandomDaytime => Toolbox.RandomInt(mission.TheaterDB.DayTime[(int)month].Min, mission.TheaterDB.DayTime[(int)month].Max - 60),
@@ -86,6 +99,19 @@ namespace BriefingRoom4DCS.Generator.Mission
             hour = Toolbox.Clamp((int)Math.Floor(totalMinutes / 60), 0, 23);
             minute = Toolbox.Clamp((int)Math.Floor((totalMinutes - hour * 60) / 15) * 15, 0, 45);
 
+            SetMissionTime(ref mission, hour, minute);
+        }
+
+        internal static void SetMissionDate(ref DCSMission mission, DateTime date)
+        {
+            mission.SetValue("DateDay", date.Day);
+            mission.SetValue("DateMonth", date.Month);
+            mission.SetValue("DateYear", date.Year);
+            mission.SetValue("BriefingDate", $"{date.Day:00}/{date.Month:00}/{date.Year:0000}");
+        }
+
+        internal static void SetMissionTime(ref DCSMission mission, int hour, int minute)
+        {
             mission.SetValue("BriefingTime", $"{hour:00}:{minute:00}");
             mission.SetValue("StartTime", hour * 3600 + minute * 60); // DCS World time is stored in seconds since midnight
         }
